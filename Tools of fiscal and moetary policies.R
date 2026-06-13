@@ -79,19 +79,69 @@ irf_result <- irf(var_model, impulse = "IR",response = "INF",n.ahead = 12)
 plot(irf_result)
 
 ### Panel Data Analysis ###
-install.packages("plm")
+### Static panel ###
+library(readxl)
+library(readxl)
+pdata <- read_excel("PANEL.xlsx")
+View(pdata)
 library(plm)
-pdata <- pdata.frame(df, index = c("country","year"))
-model <- plm(Y ~ G + INF +UNP,data = pdata,model = "within")
-summary(model)
+pdata <- pdata.frame(pdata, index = c("country","year"))
+### pooled regression model ##
+pooled_model <- plm(Y ~ I +G,data = pdata,model = "pooling")
+summary(pooled_model)
+plmtest(pooled_model, type = "bp")
+### fixed Effects Model ###
+fixed_model <- plm(Y ~  I +G,data = pdata,model = "within")
+summary(fixed_model)
 
 ### Random Effects Model ###
-random_model <- plm( GDP_Growth ~ Investment + Inflation +Education, data = pdata, model = "random")
+random_model <- plm( Y ~ I + G, data = pdata, model = "random")
 summary(random_model)
 
 ### Hausman Test ###
 phtest(fixed_model,random_model)
 
+### COINTEGRATION PANEL ###
+library(plm)
+library(urca)
+library(pdR)
+### STATIONARTY TESTS ###
+purtest( pdata$Y, test = "levinlin")
+purtest( pdata, test = "ips")
+purtest( pdata,  test = c("levinlin", "ips", "madwu", "Pm", "invnormal", "logit", "hadri"), exo = c("none", "intercept", "trend"),  lags = c("SIC", "AIC", "Hall"))
+### COINTEGRATION TESTS ###
+## 1-PEDRONI TEST ##
+install.packages("pco")
+library(pco)
+pedroni( Y ~I +G, data = pdata)
+
+## 2- KOA Test ##
+library(plm)
+model <- plm(Y ~ I +G,data = pdata,model = "within")
+residuals_model <- residuals(model)
+purtest(residuals_model,test = "ips")
+
+## 3- Westerlund Test ##
+library(foreign)
+library(pdynmc)
+westerlund_test <- pdwtest(Y ~ I+ G,data = pdata)
+summary(westerlund_test)
+
+## ESTIMATION MODEL ###
+## BY FMLOS ##
+install.packages("cointReg")
+library(cointReg)
+fmols_model <- cointRegFM(y = pdata$Y, X = as.matrix( pdata[,c("I", "G" )]))
+summary(fmols_model)
+## BY DOLS ##
+dols_model <- cointRegD(y  = data$Y,X =  pdata[,c( "I","G" )] )
+summary(dols_model)
+
+## Error Correction Model ##
+library(plm)
+dY=diff(pdata$Y); dI=diff(pdata$I)
+ecm <- plm(dY ~ dI  + ECT, data = pdata)
+summary(ecm)
 ### Inflation Forecasting ###
 library(forecast)
 fit <- auto.arima(df$INF)
